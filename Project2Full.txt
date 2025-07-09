@@ -1,0 +1,729 @@
+Incremental 2
+
+app
+--components(folder)
+ -adminnav
+ -adminviewplant
+ -adminviewreviews
+ -authguard
+ -checkout
+ -dashboard
+ -error
+ -forgot-password
+ -home-page
+ -login
+ -myorder
+ -myreview
+ -orderplaced
+ -plant-create
+ -review
+ --shared(inside components folder, create a new folder named shared)
+  -header
+ -signup
+ -usernav
+ -userviewplant
+--directives(folder)
+ -highlight-stock.directives.specs.ts
+ -highlight-stock.directive.ts
+--models(folder)(npx ng g I <name>)
+ -login.model
+ -order-items.model
+ -order.model
+ -plant.model
+ -review.model
+ -user.model
+--pipes(folder)
+ -format-category.pipe.spec.ts
+ -format-category.pipe.ts
+--services(folder)
+ -auth.service.spec.ts
+ -auth.service.ts
+ -cart.service.spec.ts
+ -cart.service.ts
+ -order.service.spec.ts
+ -order.service.ts
+ -plant.service.spec.ts
+ -plant.service.ts
+ -review.service.spec.ts
+ -review.service.ts
+--app-routing.modules.ts.................common files from here
+
+
+1)adminnav.html
+<nav class="navbar-expand-lg navbar-dark shadow-sm px-4" style="background: linear-gradient(to right, #388e3c, #c62828);">
+    <div class="conatiner-fluid">
+        <div class="navbar-brand fw-bold text-white d-flex justify-content-end align-items-end">GreenGarden</div>
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navLinks">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="navLinks">
+            <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                <li class="nav-item"><a class="nav-link text-white" href="#">Home</a></li>
+                <li class="nav-item"><a class="nav-link text-white" routerLink="dashboard">dashboard</a></li>
+                <li class="nav-item"><a class="nav-link text-white" routerLink="viewplants">Plants</a></li>
+                <li class="nav-item"><a class="nav-link text-white" href="#">Orders</a></li>
+                <li class="nav-item"><a class="nav-link text-white" routerLink="adminreviews">Reviews</a></li>
+            </ul>
+            <div class="d-flex align-items-center gap-3">
+                <span class="badge bg-dark text-white">demo12 /Admin</span>
+                <button class="btn btn-danger btn-sm">Logout</button>
+
+            </div>
+        </div>
+    </div>
+</nav>
+
+2)adminviewplant.html
+<app-adminnav></app-adminnav>
+<div class="container py-1">
+    <h3 class="text-center mb-3">Manage Plants</h3>
+
+    <div class="row gy-2 gx-2 mb-2">
+        <div class="col-12 col-md-6">
+            <input type="text" class="form-control" placeholder="Search plants" [(ngModel)]="searchTerm"/>
+        </div>
+        <div class="col-12 col-md-6">
+            <select class="form-select" [(ngModel)]="selectedCategory">
+                <option value="">All Categories</option>
+                <option *ngFor="let cat of categories">{{  cat }}</option>
+            </select>
+        </div>
+    </div>
+    <div class="row" *ngIf="filteredPlants().length>0">
+        <div class="col-12 col-sm-6" *ngFor="let plant of paginatedPlants">
+            <div class="card h-100 shadow-sm">
+                <img [src]="" [alt]="plant.name" class="card-img-top" style="height: 90px; object-fit: cover;"/>
+                <div class="card-body text-center p-0">
+                    <h5 class="card-title">{{plant.name}}</h5>
+                    <p class="card-text small text-muted p-0">{{plant.description}}</p>
+                    <p style="color:green;">Price: {{plant.price}}</p>
+                    <p style="color:green;" [appHighlightStock]="plant.stock">Stock: {{plant.stock}}</p>
+                    <p>Category: {{plant.category}}</p>
+                    <div class="d-flex justify-content-between">
+                        <button class="btn btn-success text-white btn-sm w-45">Edit</button>
+                        <button class="btn btn-danger text-white btn-sm w-45" (click)="openDeleteModal()">Delete</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <nav *ngIf="totalPages() > 1" aria-label="Page navigation" class="text-center mt-2">
+        <ul class="pagination justify-content-center">
+            <li class="page-item" [class.disabled]="currentPage === 1">
+                <a href="#" class="page-link" (click)="prevPage(); $event.preventDefault()">Previous</a>
+            </li>
+            <li class="page-item active">
+                <a href="#" class="page-link">Pagr {{currentPage}} of {{totalPages()}}</a>
+            </li>
+            <li class="page-item" [class.disabled]="currentPage === totalPages()">
+                <a href="#" class="page-link" (click)="nextPage(); $event.preventDefault()">Next</a>
+            </li>
+        </ul>
+    </nav>
+    <div #deleteModal class="modal fade" tabindex="-1" aria-labelledby="logoutModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content shadow-lg">
+                <div class="modal-body text-center">
+                    <p class="fw-bold text-dark mb-3">Are you sure you want to delete?</p>
+                    <button class="btn btn-danger me-2" (click)="deleteBtn()">Yes, Delete</button>
+                    <button class="btn btn-secondary" (click)="closeDeleteModal()">Cancel</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+3)adminviewplant.ts
+import { Component, ElementRef, OnInit, Renderer2, ViewChild } from '@angular/core';
+
+@Component({
+  selector: 'app-adminviewplant',
+  templateUrl: './adminviewplant.component.html',
+  styleUrls: ['./adminviewplant.component.css']
+})
+export class AdminviewplantComponent implements OnInit {
+
+  searchTerm:string = '';
+  selectedCategory:string = '';
+  currentPage:number = 1;
+  plantsPerPage:number = 2;
+
+  @ViewChild('deleteModal')deleteModalRef!:ElementRef;
+
+  categories = ['Fruit', 'Bonsai'];
+
+  plants = [
+    {
+      name:'Apricot',
+      description: 'Fruit from the garden. A bright fruit from other species.',
+      price:'$999',
+      stock:24,
+      category:'Fruit',
+      image: ''
+    },
+    {
+      name:'Bonsai',
+      description: 'Japanese art of growing miniature tress in containers.',
+      price:'$66',
+      stock:36,
+      category:'Bonsai',
+      image: ''
+    }
+  ]
+  constructor(private renderer: Renderer2) { }
+
+  ngOnInit(): void {
+    this.fetchPlants();
+  }
+  fetchPlants(){
+    //alert('Fetching plants');
+  }
+
+  filteredPlants(){
+    return this.plants.filter((plant)=>{
+      const matchesSearch = plant.name.toLowerCase().includes(this.searchTerm.toLowerCase());
+      const matchesCategory = !this.selectedCategory || plant.category === this.selectedCategory;
+    })
+  }
+
+  get paginatedPlants(){
+    const start = (this.currentPage - 1) * this.plantsPerPage;
+    return this.filteredPlants().slice(start, start+this.plantsPerPage);
+  }
+  totalPages():number{
+    return Math.ceil(this.filteredPlants().length / this.plantsPerPage);
+  }
+  nextPage(){
+    if(this.currentPage < this.totalPages()) this.currentPage++;
+  }
+  prevPage(){
+    if(this.currentPage > 1) this.currentPage--;
+  }
+  deleteBtn():void{
+    localStorage.clear();
+    window.location.reload();
+  }
+  openDeleteModal():void{
+    const modalElement = this.deleteModalRef.nativeElement;
+    this.renderer.addClass(modalElement, 'show');
+    this.renderer.setStyle(modalElement, 'display', 'block');
+    this.renderer.setStyle(modalElement, 'backgroundColor', 'rgba(0,0,0,0.5)');
+    this.renderer.setAttribute(modalElement, 'aria-modal', 'true');
+    this.renderer.removeAttribute(modalElement, 'aria-hidden');
+  }
+  closeDeleteModal():void{
+    const modalElement = this.deleteModalRef.nativeElement;
+    this.renderer.removeClass(modalElement, 'show');
+    this.renderer.setStyle(modalElement, 'display', 'none');
+    this.renderer.setAttribute(modalElement, 'aria-hidden', 'true');
+    this.renderer.removeAttribute(modalElement, 'aria-modal');
+  }
+
+}
+
+4)adminviewreviews.html
+<div class="container mt-5 pt-5">
+    <h4 class="text-center fw-bold mb-4">View Reviews</h4>
+    <div class="row justify-content-between mb-3">
+        <div class="col-md-6">
+            <input type="text" class="form-control" placeholder="Search reviews..."/>
+        </div>
+        <div class="col-md-4 text-end">
+            <select class="form-select">
+                <option selected>Sort by Date: Ascending</option>
+                <option>Sort by Date: Descending</option>
+            </select>
+    </div>
+    </div>
+    <!-- review card -->
+     <div class="card shadow-sm mb-4">
+        <div class="card-body">
+            <h6 class="fw-bold mb-1">Apricot</h6>
+            <div style="color:gold;" class="mb-2">♪♪♪♪</div>
+            <p class="mb-1"><strong>Date:</strong>March 17, 2025</p>
+            <p class="mb-3">excellent health</p>
+    
+            <div class="d-flex justify-content-between">
+                <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#productModal">View Product</button>
+                <button class="btn btn-danger btn-sm">View Profile</button>
+            </div>
+        </div>
+     </div>
+     <!-- pagination -->
+     <nav aria-label="Review pagination">
+        <ul class="pagination justify-content-center">
+            <li class="page-item disabled">
+                <a class="page-link">Previous</a>
+            </li>
+            <li class="page-item active">
+                <a class="page-link">1</a>
+            </li>
+            <li class="page-item disabled">
+                <a class="page-link">Next</a>
+            </li>
+    
+        </ul>
+     </nav>
+     </div>
+    
+     <!-- product details modal -->
+     <div class="modal fade" id="productModal" tabindex="-1" aria-labelledby="productModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog centered">
+            <div class="modal-content shadow">
+                <div class="modal-header">
+                    <h5 class="modal-title fw-bold" id="productModalLabel">Product Details</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body text-center">
+                    <img src="https://via.placeholder.com/250X150" alt="Apricot" class="img-fluid rounded mb-3"/>
+                    <p><strong>Name:</strong>Apricot</p>
+                </div>
+                <!-- product details modal -->
+                <div class="modal fade" id="productModal" tabindex="-1" aria-labelledby="productModalLabel" aria-hidden="true">
+                    <div class="modal-dialog modal-dialog centered">
+                        <div class="modal-content shadow">
+                            <div class="modal-header">
+                                <h5 class="modal-title " id="productModalLabel">Product Details</h5>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                            </div>
+                            <div class="modal-body text-center">
+                                <img src="https://via.placeholder.com/250x150" alt="Apricot" class="img-fluid rounded mb-3"/>
+                                <p><strong>Name:</strong>Apricot</p>
+                                <p><strong>Price:</strong>599</p>
+                                <p class="text-start"><strong>Description</strong>fruit from the species Prunus rmeniaca, although fruits from other species in the same genius</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+     </div>	
+
+5)adminviewreviews.ts
+import { Component, OnInit } from '@angular/core';
+
+@Component({
+  selector: 'app-adminviewreviews',
+  templateUrl: './adminviewreviews.component.html',
+  styleUrls: ['./adminviewreviews.component.css']
+})
+export class AdminviewreviewsComponent implements OnInit {
+selectedReview: any;
+reviews: any;
+
+  constructor() { }
+
+  ngOnInit(): void {
+  }
+
+}
+
+6)dashboard.html
+<div class="container mt-5 pt-5">
+    <h3 class="text-center fw-bold my-4">Admin Dashboard</h3>
+
+    <div class="row justify-content-center mb-5">
+        <div class="col-md-2 mx-2">
+            <div class="text-white p=3 text-center rounded shadow" style="background-color: #4caf50;">
+                <h6 class="mb-1">Total Users</h6>
+                <h5 class="mb-0">2</h5>
+            </div>
+        </div>
+
+        <div class="col-md-2 mx-2">
+            <div class="text-white p=3 text-center rounded shadow" style="background-color: #4caf50;">
+                <h6 class="mb-1">Total Plants</h6>
+                <h5 class="mb-0">2</h5>
+            </div>
+        </div>
+        <div class="col-md-2 mx-2">
+            <div class="text-white p=3 text-center rounded shadow" style="background-color: #4caf50;">
+                <h6 class="mb-1">Total Orders</h6>
+                <h5 class="mb-0">4</h5>
+            </div>
+        </div>
+        <div class="col-md-2 mx-2">
+            <div class="text-white p=3 text-center rounded shadow" style="background-color: #4caf50;">
+                <h6 class="mb-1">Total Reviews</h6>
+                <h5 class="mb-0">1</h5>
+            </div>
+        </div>
+
+
+    </div>
+    <h5 class="fw-bold mb-3">User List</h5>
+    <div class="table-responsive">
+        <table class="table shadow-sm">
+            <thead style="background-color: #4caf50; color: white">
+                <tr>
+                    <th class="fw-semibold">Username</th>
+                    <th class="fw-semibold">Email</th>
+                    <th class="fw-semibold">Mobile Number</th>
+
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>demouser</td>
+                    <td>demouser&#64;gmail.com</td>
+                    <td>12345678</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+7)forgot-password.html
+<h2>Forgot Password</h2>
+<input type="email" placeholder="Enter email"/>
+<button type="submit">Reset Password</button>	
+
+8)home-page.html
+<div class="position-relative">
+    <img src="assets/images/background.webp" class="img-fluid w-100" style="height: 400px; object-fit: cover;" alt="GreenGarden Banner">
+    <h1 class="position-absolute top-50 start-50 translate-middle text-white bg-dark px-4 py-2 rounded shadow">GreenGarden</h1>
+</div>
+<!-- welcome message -->
+<div class="container text-center my-4">
+    <div class="card shadow">
+        <div class="card-body">
+            <p class="card-text fs-5">
+                Welcome to<strong>GreenGarden</strong>, your one-stop destination for premium plants and gardening essentials.
+            </p>
+        </div>
+    </div>
+</div>
+
+<!-- contact us -->
+<footer class="bg-success text-white text-center py-4">
+    <h4>Contact Us</h4>
+    <p><strong>Phone:</strong> +91 98756 45231</p>
+    <p><strong>Email:</strong> +91 98756 45231</p>
+    <p><strong>Address</strong> +91 98756 45231</p>
+</footer>	
+
+9)myreview.html
+<h2>My Reviews</h2>
+
+10)orderplaced.html
+<h2>Orders Placed</h2>
+<input type="text" placeholder="Search orders...">
+
+11)plant-create.ts
+import { Component, OnInit } from '@angular/core';
+import { FormBuilder, FormGroup, Validators } from '@angular/forms';
+import { Router } from '@angular/router';
+
+@Component({
+  selector: 'app-plant-create',
+  templateUrl: './plant-create.component.html',
+  styleUrls: ['./plant-create.component.css']
+})
+export class PlantCreateComponent implements OnInit {
+
+  plantForm!:FormGroup;
+  constructor(private formBuilder: FormBuilder, private router: Router) { }
+
+  ngOnInit(): void {
+    this.initializeForm();
+  }
+  initializeForm():void{
+    this.plantForm = this.formBuilder.group({
+      plantName:['', Validators.required],
+      description:['', Validators.required],
+      price:[null, [Validators.required, Validators.min(0)]],
+      stockQuantity:[null, [Validators.required, Validators.min(0)]],
+      category:['', Validators.required],
+    })
+  }
+  onSubmit():void{
+    if(this.plantForm.valid){
+      this.router.navigate(['/plants']);
+    }
+  }
+}
+
+12)review.html
+<h2>Submit Your Review</h2>
+
+13)usernav.html
+<header>
+    <div class="container-fluid">
+        <nav class="navbar navbar-expand-lg" style="background-image: linear-gradient(to right, green, rgba(255, 255, 255, 0.462),brown);">
+            <a href="#" class="navbar-brand">GreenGarden</a>
+            <div class="collapse navbar-collapse">
+                <ul class="navbar-nav d-flex justify-content-end me-2 align-items-center w-100">
+                    <li class="nav-item">
+                        <a routerLink="/home" class="nav-link">Home</a>
+                    </li>
+                    <li class="nav-item">
+                        <a routerLink="" class="nav-link">Dashboard</a>
+                    </li>
+                    <li class="nav-item">
+                        <a routerLink="" class="nav-link">Plants</a>
+                    </li>
+                    <li class="nav-item">
+                        <a routerLink="" class="nav-link">Orders</a>
+                    </li>
+                    <li class="nav-item">
+                        <a routerLink="/admin/reviews" class="nav-link">Reviews</a>
+                    </li>
+                    <li class="nav-item">
+                        <button class="btn btn-danger logout">Logout</button>
+                    </li>
+                </ul>
+            </div>
+        </nav>
+    </div>
+</header>
+
+14)userviewplant.html
+<h1>Plants</h1>
+
+15)highlight-stock.ts
+import { Directive, ElementRef, Input, OnChanges} from '@angular/core';
+
+@Directive({
+  selector: '[appHighlightStock]'
+})
+export class HighlightStockDirective implements OnChanges{
+  @Input() stockQuantity!:number;
+
+  constructor(private el: ElementRef) { }
+  ngOnChanges():void {
+    const element = this.el.nativeElement as HTMLElement;
+    
+    if(this.stockQuantity<10){
+      element.style.color ='red';
+      element.style.fontWeight ='bold';
+    } else{
+      element.style.color='';
+      element.style.fontWeight='';
+    }
+  }
+}
+
+16) In models files remove .model beside
+"export interface User.Model {}" ==>> "export interface User {}"
+
+17)format-category.pipe.ts
+import { Pipe, PipeTransform } from '@angular/core';
+
+@Pipe({
+  name: 'formatCategory'
+})
+export class FormatCategoryPipe implements PipeTransform {
+
+  transform(value: string|null): string {
+    if(!value) return 'Unknown';
+    return value.charAt(0).toUpperCase() + value.slice(1).toLowerCase();
+  
+  }
+
+}
+
+18)order.service.ts
+import { HttpClient } from '@angular/common/http';
+import { Injectable } from '@angular/core';
+import { Observable } from 'rxjs';
+
+@Injectable({
+  providedIn: 'root'
+})
+export class OrderService {
+  private baseUrl='http://localhost:3000';
+
+
+  constructor(private http:HttpClient) { }
+  placeOrder(order:any):Observable<any>{
+    return this.http.post(`${this.baseUrl}/order/addOrder`,order);
+  }
+  getAllOrders():Observable<any>{
+    return this.http.get(`${this.baseUrl}/order/getAllOrders`);
+  }
+  updateOrder(id:number,order:any):Observable<any>{
+    return this.http.put(`${this.baseUrl}/order/updateOrder/${id}`,order);
+  }
+  deleteOrder(id:number):Observable<any>{
+    return this.http.delete(`${this.baseUrl}/order/deleteOrder/${id}`);
+  }
+}
+
+19)plant.service.ts
+import { HttpClient } from '@angular/common/http';
+import { Injectable } from '@angular/core';
+import { Observable } from 'rxjs';
+
+@Injectable({
+  providedIn: 'root'
+})
+export class PlantService {
+  private baseUrl='http://localhost:3000';
+
+
+  constructor(private http:HttpClient) { }
+  addPlant(plant:any):Observable<any>{
+    return this.http.post(`${this.baseUrl}/plant/addPlant`,plant);
+  }
+  getAllPlants():Observable<any>{
+    return this.http.get(`${this.baseUrl}/plant/getAllPlants`);
+  }
+  updatePlant(id:number,plant:any):Observable<any>{
+    return this.http.put(`${this.baseUrl}/plant/updatePlant/${id}`,plant);
+  }
+  deletePlant(id:number):Observable<any>{
+    return this.http.delete(`${this.baseUrl}/plant/deletePlant/${id}`);
+  }
+}
+
+20)review.service.ts
+import { HttpClient } from '@angular/common/http';
+import { Injectable } from '@angular/core';
+import { Observable } from 'rxjs';
+
+@Injectable({
+  providedIn: 'root'
+})
+export class ReviewService {
+
+  private baseUrl='http://localhost:3000';
+
+
+  constructor(private http:HttpClient) { }
+  addReview(review:any):Observable<any>{
+    return this.http.post(`${this.baseUrl}/review/addReview`,review);
+  }
+  getAllReviews():Observable<any>{
+    return this.http.get(`${this.baseUrl}/review/getAllReviews`);
+  }
+  updateReview(id:number,review:any):Observable<any>{
+    return this.http.put(`${this.baseUrl}/review/updateReview/${id}`,review);
+  }
+  deleteReview(id:number):Observable<any>{
+    return this.http.delete(`${this.baseUrl}/review/deleteReview/${id}`);
+  }
+}
+
+21)app-routing.modules.ts
+import { NgModule } from '@angular/core';
+import { Routes, RouterModule } from '@angular/router';
+import { HomePageComponent } from './components/home-page/home-page.component';
+import { DashboardComponent } from './components/dashboard/dashboard.component';
+import { AdminviewreviewsComponent } from './components/adminviewreviews/adminviewreviews.component';
+import { AdminviewplantComponent } from './components/adminviewplant/adminviewplant.component';
+
+
+const routes: Routes = [
+  {path:'',component:HomePageComponent},
+  {path:'dashboard',component:DashboardComponent},
+  {path:'adminreviews',component:AdminviewreviewsComponent},
+  {path:'viewplants',component:AdminviewplantComponent},
+  
+
+
+ 
+  
+];
+
+@NgModule({
+  imports: [RouterModule.forRoot(routes)],
+  exports: [RouterModule]
+})
+export class AppRoutingModule { }
+
+22)app.component.css
+*{
+    margin: 0;
+    padding: 0;
+}
+
+23)app.component.html
+<app-usernav *ngIf="userRole==='User'"></app-usernav>
+<app-adminnav *ngIf="userRole!=='User'"></app-adminnav>
+<router-outlet></router-outlet>
+
+24)app.component.ts
+import { Component } from '@angular/core';
+
+@Component({
+  selector: 'app-root',
+  templateUrl: './app.component.html',
+  styleUrls: ['./app.component.css']
+})
+export class AppComponent {
+  title = 'angularapp';
+  userRole: any;
+}
+
+25)app.modules.ts
+import { BrowserModule } from '@angular/platform-browser';
+import { NgModule } from '@angular/core';
+import { AppRoutingModule } from './app-routing.module';
+import { AppComponent } from './app.component';
+import { DashboardComponent } from './components/dashboard/dashboard.component';
+import { HomePageComponent } from './components/home-page/home-page.component';
+import { AdminnavComponent } from './components/adminnav/adminnav.component';
+import { AdminviewreviewsComponent } from './components/adminviewreviews/adminviewreviews.component';
+import { AuthguardComponent } from './components/authguard/authguard.component';
+import { CheckoutComponent } from './components/checkout/checkout.component';
+import { ErrorComponent } from './components/error/error.component';
+import { ForgotPasswordComponent } from './components/forgot-password/forgot-password.component';
+import { LoginComponent } from './components/login/login.component';
+import { MyorderComponent } from './components/myorder/myorder.component';
+import { MyreviewComponent } from './components/myreview/myreview.component';
+import { OrderplacedComponent } from './components/orderplaced/orderplaced.component';
+import { PlantCreateComponent } from './components/plant-create/plant-create.component';
+import { ReviewComponent } from './components/review/review.component';
+import { SignupComponent } from './components/signup/signup.component';
+import { UsernavComponent } from './components/usernav/usernav.component';
+import { UserviewplantComponent } from './components/userviewplant/userviewplant.component';
+import { AdminviewplantComponent } from './components/adminviewplant/adminviewplant.component';
+import { HeaderComponent } from './components/shared/header/header.component';
+import { HighlightStockDirective } from './directives/highlight-stock.directive';
+import { FormatCategoryPipe } from './pipes/format-category.pipe';
+import { FormsModule } from '@angular/forms';
+import { RouterModule } from '@angular/router';
+import { HttpClientModule } from '@angular/common/http';
+
+
+
+@NgModule({
+  declarations: [
+    AppComponent,
+    DashboardComponent,
+    HomePageComponent,
+    AdminnavComponent,
+    AdminviewreviewsComponent,
+    AuthguardComponent,
+    CheckoutComponent,
+    ErrorComponent,
+    ForgotPasswordComponent,
+    LoginComponent,
+    MyorderComponent,
+    MyreviewComponent,
+    OrderplacedComponent,
+    PlantCreateComponent,
+    ReviewComponent,
+    SignupComponent,
+    UsernavComponent,
+    UserviewplantComponent,
+    AdminviewplantComponent,
+    HeaderComponent,
+    HighlightStockDirective,
+    FormatCategoryPipe,
+    
+  
+  ],
+  imports: [
+    BrowserModule,
+    AppRoutingModule,
+    FormsModule,
+    RouterModule,
+    HttpClientModule
+  ],
+
+  providers: [],
+  bootstrap: [AppComponent]
+})
+export class AppModule {
+}
